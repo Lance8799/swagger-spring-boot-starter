@@ -6,9 +6,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.autoconfigure.web.WebMvcAutoConfiguration;
+import org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.util.StringUtils;
 import springfox.documentation.builders.ApiInfoBuilder;
 import springfox.documentation.builders.PathSelectors;
 import springfox.documentation.service.ApiInfo;
@@ -18,6 +19,7 @@ import springfox.documentation.spring.web.plugins.Docket;
 import springfox.documentation.swagger2.annotations.EnableSwagger2;
 
 import java.util.Map;
+import java.util.Objects;
 
 @Configuration
 @EnableSwagger2
@@ -38,14 +40,20 @@ public class SwaggerAutoConfiguration{
     }
 
     public void register(){
-        for (Map.Entry<String, SwaggerInfo> entry : properties.getGroup().entrySet()) {
-            String group = entry.getKey();
-            Docket docket = docket(group, entry.getValue());
-            beanFactory.registerSingleton(group + "Docket", docket);
+        // 不分组设置
+        if (Objects.isNull(properties.getGroup()) && StringUtils.hasText(properties.getAntPaths()))
+            beanFactory.registerSingleton("defaultDocket", docket("default", new SwaggerInfo()));
+        else {
+            for (Map.Entry<String, SwaggerInfo> entry : properties.getGroup().entrySet()) {
+                String group = entry.getKey();
+                Docket docket = docket(group, entry.getValue());
+                beanFactory.registerSingleton(group + "Docket", docket);
+            }
         }
     }
 
     private Docket docket(String group, SwaggerInfo info){
+        defaultInfo(info);
         return new Docket(DocumentationType.SWAGGER_2)
                 .groupName(group).apiInfo(apiInfo(info))
                 .useDefaultResponseMessages(false)
@@ -55,7 +63,6 @@ public class SwaggerAutoConfiguration{
     }
 
     private ApiInfo apiInfo(SwaggerInfo info){
-        defaultInfo(info);
         return new ApiInfoBuilder()
                 .title(info.getTitle())
                 .description(info.getDescription())
@@ -86,6 +93,8 @@ public class SwaggerAutoConfiguration{
             info.setUrl(properties.getUrl());
         if (info.getEmail() == null)
             info.setEmail(properties.getEmail());
+        if (info.getAntPaths() == null)
+            info.setAntPaths(properties.getAntPaths());
     }
 
 }
